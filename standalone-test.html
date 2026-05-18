@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>CIRCA study - standalone test</title>
+
+    <!-- jsPsych 7.3.4 core + plugins, loaded from CDN -->
+    <script src="https://unpkg.com/jspsych@7.3.4"></script>
+    <link href="https://unpkg.com/jspsych@7.3.4/css/jspsych.css" rel="stylesheet" type="text/css">
+    <script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.2.1"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-html-button-response@1.1.3"></script>
+    <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.3"></script>
+</head>
+<body></body>
+<script>
+/* =============================================================
+   STANDALONE TEST VERSION of the CIRCA study.
+   This is for piloting outside of Children Helping Science. It is
+   identical to experiment.js EXCEPT:
+     - the CHS frames (video config / consent / recording / exit
+       survey) are removed and replaced with a plain welcome page;
+     - images load from the local img/ folder (relative paths), so
+       it works before the GitHub repo is published;
+     - at the end the data is shown on screen and can be saved.
+   Keep experiment.js as the version you deploy to CHS.
+   ============================================================= */
+
+const jsPsych = initJsPsych({
+    on_finish: function() {
+        jsPsych.data.displayData();
+    }
+});
+
+const timeline = [];
+
+// ----- images (local, relative to this html file) --------------
+
+const img_directory = "img/";
+
+const images = {
+    CS: img_directory + "CS.png",   // ring of overlapping circles -> Communal Sharing
+    AR: img_directory + "AR.png",   // pyramid of circles          -> Authority Ranking
+    EM: img_directory + "EM.png"    // horizontal row of circles   -> Equality Matching
+};
+
+// narration audio, local audio/ folder (produced by generate_audio.py)
+const audio_directory = "audio/";
+
+/* Randomize the left/center/right layout once, keep it for the
+   whole session. position_order[0] is leftmost, [1] center,
+   [2] rightmost. */
+const position_order = jsPsych.randomization.shuffle(["CS", "AR", "EM"]);
+
+jsPsych.data.addProperties({
+    left_image: position_order[0],
+    center_image: position_order[1],
+    right_image: position_order[2]
+});
+
+/* The 15 questions, each tagged with the relational model it is
+   intended to probe. "model" is the EXPECTED answer, not shown to
+   the child or used to order anything. */
+const questions = [
+    { q: "Which ones eat from the same plate?", model: "CS" },
+    { q: "Which ones like to dress just like one another?", model: "CS" },
+    { q: "Which ones are all the same inside?", model: "CS" },
+    { q: "Which ones dance together?", model: "CS" },
+    { q: "Which ones hold hands?", model: "CS" },
+    { q: "Which ones know who is older and who is younger?", model: "AR" },
+    { q: "Which ones have someone who gets to go first?", model: "AR" },
+    { q: "Which ones care about who is biggest?", model: "AR" },
+    { q: "Which ones have someone who is strongest, and someone who is next strongest?", model: "AR" },
+    { q: "Which ones care about who is in front and who is behind?", model: "AR" },
+    { q: "Which ones take turns?", model: "EM" },
+    { q: "Which ones divide cookies evenly, so each one gets the same number?", model: "EM" },
+    { q: "When others give them something, which ones give back the same kind of thing?", model: "EM" },
+    { q: "Which ones decide by flipping a coin, playing rock paper scissors, or going 'Eeny, meeny, miny, moe'?", model: "EM" },
+    { q: "Which ones clean up equally?", model: "EM" }
+];
+
+// ----- frames ---------------------------------------------------
+
+const preload = {
+    type: jsPsychPreload,
+    images: [images.CS, images.AR, images.EM],
+    message: "Loading study...",
+    show_detailed_errors: true
+};
+
+const enter_fullscreen = {
+    type: jsPsychFullscreen,
+    fullscreen_mode: true,
+    button_label: "Go full screen"
+};
+
+const welcome = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div style="max-width:1000px; margin:0 auto;">
+            <p style="font-size: 34px; line-height: 1.35;">
+            <b>Standalone test version.</b> This is a pilot copy of the CIRCA
+            study with the Children Helping Science consent and recording
+            screens removed. No data leaves this computer.
+            </p></div>`,
+    choices: ['<p style="font-size: 40px; margin-top:5px;">Start</p>']
+};
+
+const parent_instructions = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<div style="max-width:1000px; margin:0 auto;">
+            <p style="font-size: 34px; line-height: 1.35;">
+            <b>For the grown-up:</b> In a moment your child will see three pictures,
+            and a voice will read a question aloud each time. Your child should
+            point to whichever picture they think is the best answer -- there are
+            no right or wrong answers.<br><br>
+            Please let your child hear the whole question before they answer, and
+            click the picture they point to. After each answer, you can show your
+            child that you appreciate their response (for example, "thank you!"),
+            but please do <b>not</b> tell them whether an answer is right, wrong,
+            or good.
+            </p></div>`,
+    choices: ['<p style="font-size: 40px; margin-top:5px;">Next</p>']
+};
+
+const child_intro = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<audio id="narration" autoplay>
+                <source src="${audio_directory}intro.mp3" type="audio/mpeg">
+            </audio>
+            <div style="max-width:1000px; margin:0 auto;">
+            <p style="font-size: 44px; line-height: 1.3;">
+            I'll ask you some questions. You point to the answer each time --
+            whatever answer you think is best.
+            </p></div>`,
+    choices: ['<p style="font-size: 40px; margin-top:5px;">Next</p>']
+};
+
+// ----- main CIRCA trials ----------------------------------------
+
+const image_choices = [
+    `<img src="${images[position_order[0]]}" style="width:30vw; max-width:430px;">`,
+    `<img src="${images[position_order[1]]}" style="width:30vw; max-width:430px;">`,
+    `<img src="${images[position_order[2]]}" style="width:30vw; max-width:430px;">`
+];
+
+const circa_trial = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: jsPsych.timelineVariable('prompt_html'),
+    choices: image_choices,
+    margin_horizontal: "18px",
+    post_trial_gap: 500,
+    data: {
+        name: 'circa_response',
+        question: jsPsych.timelineVariable('q'),
+        intended_model: jsPsych.timelineVariable('model')
+    },
+    on_finish: function(data) {
+        data.position = ['left', 'center', 'right'][data.response];
+        data.coded_response = position_order[data.response];
+        data.matches_intended = (data.coded_response === data.intended_model);
+    }
+};
+
+const circa_block = {
+    timeline: [circa_trial],
+    timeline_variables: questions.map(function(item, i) {
+        const audio_file = audio_directory + "q" + String(i + 1).padStart(2, "0") + ".mp3";
+        return {
+            q: item.q,
+            model: item.model,
+            prompt_html: `<audio id="narration" autoplay>
+                    <source src="${audio_file}" type="audio/mpeg">
+                    </audio>
+                    <div style="max-width:1100px; margin:0 auto 18px auto;">
+                    <p style="font-size: 46px; line-height: 1.3;">${item.q}</p>
+                    </div>`
+        };
+    }),
+    randomize_order: true
+};
+
+// ----- exit -----------------------------------------------------
+
+const thanks = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<audio id="narration" autoplay>
+                <source src="${audio_directory}thanks.mp3" type="audio/mpeg">
+            </audio>
+            <p style="font-size: 44px; margin-top:5px; line-height: 1.3;">
+            Thank you for playing!
+            </p>`,
+    choices: ['<p style="font-size: 40px;">Next</p>']
+};
+
+const email = {
+    type: jsPsychSurveyText,
+    questions: [
+        { prompt: "(Test version) Email field placeholder." }
+    ],
+    data: { trial_type: "free_response" }
+};
+
+const debrief = {
+    type: jsPsychHtmlButtonResponse,
+    stimulus: `<p style="padding: 1em; border: medium solid #87b79f; border-radius: 5px; background-color: #effbf5; font-size: 28px; line-height: 1.3;">Thanks for testing the study! This study examines how children connect spatial patterns to social relationships. After you press the button, the raw trial data will be shown on screen so you can check it.</p>`,
+    choices: ['<p style="font-size: 40px;">Show data</p>']
+};
+
+// ----- study flow -----------------------------------------------
+
+timeline.push(preload);
+timeline.push(welcome);
+timeline.push(enter_fullscreen);
+timeline.push(parent_instructions);
+timeline.push(child_intro);
+timeline.push(circa_block);
+timeline.push(thanks);
+timeline.push(email);
+timeline.push(debrief);
+
+jsPsych.run(timeline);
+</script>
+</html>
