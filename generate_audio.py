@@ -1,12 +1,18 @@
 #!/usr/bin/env python3
-"""Generate narration audio for the CIRCA study using edge-tts.
-
-edge-tts is free and needs no API key -- it uses Microsoft's neural
-voices. We use a child-sounding US English voice, slowed slightly so
-4-6 year-olds can follow along.
+"""Generate narration audio for the CIRCA study using ElevenLabs.
 
 Setup:
-    pip3 install edge-tts
+    pip3 install elevenlabs
+
+    Get an API key from https://elevenlabs.io (click your profile ->
+    API Keys -> Create). Then set it as an environment variable in
+    the same terminal you run this script from:
+
+        export ELEVENLABS_API_KEY="your_key_here"
+
+    Make sure the voice you want ("Shanny" below) is in your
+    ElevenLabs account. If it is a Voice Library voice, click "Add"
+    to add it to your account first.
 
 Run:
     python3 generate_audio.py
@@ -16,22 +22,29 @@ Output:
 
 IMPORTANT: the q01..q15 ids below must stay in the SAME ORDER as the
 `questions` array in experiment.js / standalone-test.html. If you add,
-remove, or reword a question, update the matching line here and re-run
-this script.
+remove, or reword a question, update the matching line here and re-run.
 """
 
-import asyncio
+import os
+import sys
 from pathlib import Path
 
-import edge_tts
+from elevenlabs.client import ElevenLabs
 
-# en-US-AnaNeural is a child-sounding US English neural voice.
-# To hear other options, run:  edge-tts --list-voices
-VOICE = "en-US-AnaNeural"
+# --- configuration ----------------------------------------------
 
-# Slightly slowed delivery for young children. Use e.g. "+0%" for
-# normal speed or "-20%" for slower.
-RATE = "-10%"
+# Voice to use. The script looks up its id by name from your account.
+# If you already know the voice id, paste it into VOICE_ID and it
+# will be used directly (you can copy it on elevenlabs.io: open the
+# voice, then "ID" / "Copy Voice ID").
+VOICE_NAME = "Shanny"
+VOICE_ID = "qlnUbSLa6XkXV9pK52QP"
+
+# Quality model. eleven_multilingual_v2 is a good, stable choice for
+# pre-recorded study audio (generation latency does not matter here).
+MODEL_ID = "eleven_multilingual_v2"
+
+OUTPUT_FORMAT = "mp3_44100_128"
 
 OUTPUT_DIR = Path(__file__).parent / "audio"
 
@@ -59,20 +72,48 @@ CLIPS = {
 }
 
 
-async def synth(clip_id: str, text: str) -> None:
-    out_path = OUTPUT_DIR / f"{clip_id}.mp3"
-    communicate = edge_tts.Communicate(text, voice=VOICE, rate=RATE)
-    await communicate.save(str(out_path))
-    print(f"  wrote audio/{clip_id}.mp3")
+def resolve_voice_id(client: ElevenLabs) -> str:
+    """Return VOICE_ID if set, otherwise look it up by VOICE_NAME."""
+    if VOICE_ID:
+        return VOICE_ID
+    voices = client.voices.get_all().voices
+    for v in voices:
+        if v.name and v.name.lower() == VOICE_NAME.lower():
+            return v.voice_id
+    names = ", ".join(sorted(v.name for v in voices if v.name)) or "(none)"
+    sys.exit(
+        f"Voice '{VOICE_NAME}' was not found in your account.\n"
+        f"Add it to your account on elevenlabs.io, or set VOICE_ID directly.\n"
+        f"Voices currently in your account: {names}"
+    )
 
 
-async def main() -> None:
+def main() -> None:
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    if not api_key:
+        sys.exit("Set the ELEVENLABS_API_KEY environment variable first "
+                 "(see the comment block at the top of this file).")
+
+    client = ElevenLabs(api_key=api_key)
+    voice_id = resolve_voice_id(client)
+
     OUTPUT_DIR.mkdir(exist_ok=True)
-    print(f"Generating {len(CLIPS)} audio files with voice '{VOICE}' (rate {RATE})...")
+    print(f"Generating {len(CLIPS)} audio files with voice '{VOICE_NAME}' ({voice_id})...")
     for clip_id, text in CLIPS.items():
-        await synth(clip_id, text)
+        audio = client.text_to_speech.convert(
+            voice_id=voice_id,
+            text=text,
+            model_id=MODEL_ID,
+            output_format=OUTPUT_FORMAT,
+        )
+        out_path = OUTPUT_DIR / f"{clip_id}.mp3"
+        with open(out_path, "wb") as f:
+            for chunk in audio:
+                if chunk:
+                    f.write(chunk)
+        print(f"  wrote audio/{clip_id}.mp3")
     print(f"Done. Files are in: {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
